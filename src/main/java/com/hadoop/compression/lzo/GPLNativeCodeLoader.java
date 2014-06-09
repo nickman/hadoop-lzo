@@ -45,8 +45,6 @@ public class GPLNativeCodeLoader {
   private static boolean nativeLibraryLoaded = false;
 
   static {
-	System.load("/usr/local/lib/" + LZO_NATIVE_LIBRARY_NAME);
-	LOG.info("Loaded [" + LZO_NATIVE_LIBRARY_NAME + "]");
     try {
 	LOG.info("Library Name: [" + LIBRARY_NAME + "], Native Library Name: [" + NATIVE_LIBRARY_NAME + "]");
       //try to load the lib
