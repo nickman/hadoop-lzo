@@ -29,6 +29,9 @@ import org.apache.commons.logging.LogFactory;
 
 public class GPLNativeCodeLoader {
   public static final String LIBRARY_NAME = "gplcompression";
+  public static final String LZO_LIBRARY_NAME = "lzo2";
+  public static final String NATIVE_LIBRARY_NAME = System.mapLibraryName(LIBRARY_NAME);
+  public static final String LZO_NATIVE_LIBRARY_NAME = System.mapLibraryName(LZO_LIBRARY_NAME);
   /**
    * The system property that causes hadoop-lzo to ignore the embedded native
    * library and load it from the normal library path instead. It is false by
@@ -43,6 +46,7 @@ public class GPLNativeCodeLoader {
 
   static {
     try {
+	LOG.info("Library Name: [" + LIBRARY_NAME + "], Native Library Name: [" + NATIVE_LIBRARY_NAME + "]");
       //try to load the lib
       if (!useBinariesOnLibPath()) {
         File unpackedFile = unpackBinaries();
@@ -51,19 +55,50 @@ public class GPLNativeCodeLoader {
           System.load(path);
           LOG.info("Loaded native gpl library from the embedded binaries");
         } else { // fall back
-          System.loadLibrary(LIBRARY_NAME);
-          LOG.info("Loaded native gpl library from the library path");
+          System.loadLibrary(NATIVE_LIBRARY_NAME);
+          LOG.info("Loaded native gpl library [" + NATIVE_LIBRARY_NAME + "] from the library path");
         }
       } else {
-        System.loadLibrary(LIBRARY_NAME);
-        LOG.info("Loaded native gpl library from the library path");
+        System.loadLibrary(NATIVE_LIBRARY_NAME);
+	LOG.info("Loaded native gpl library [" + NATIVE_LIBRARY_NAME + "] from the library path");
       }
       nativeLibraryLoaded = true;
     } catch (Throwable t) {
-      LOG.error("Could not load native gpl library", t);
-      nativeLibraryLoaded = false;
+      if(!manualLoad()) {
+      		LOG.error("Could not load native gpl library", t);
+      		nativeLibraryLoaded = false;
+	}
     }
   }
+
+	static boolean manualLoad() {
+		String[] libPaths = System.getProperty("java.library.path", "").split(File.pathSeparator);
+		Throwable lastThrowable = null;
+		for(String lPath: libPaths) {
+			try {
+				File f = new File(lPath);
+				if(f.exists() && f.isDirectory()) {
+					String lib = lPath + File.separator + NATIVE_LIBRARY_NAME; 					
+					if(new File(lib).exists()) {
+						System.load(lib);
+						LOG.info("Manually Located and Loaded native gpl library [" + lib + "] from the library path");
+						nativeLibraryLoaded = true;
+						return true;
+					}
+					
+					
+				}
+			} catch (Throwable t) {
+				lastThrowable = t;
+			}
+		}
+		if(lastThrowable!=null) {
+			LOG.error("Could not load native gpl library", lastThrowable);
+		} else {
+			LOG.error("Could not locate native gpl library");
+		}
+		return false;
+	}
 
   /**
    * Are the native gpl libraries loaded? 
@@ -77,6 +112,10 @@ public class GPLNativeCodeLoader {
     return Boolean.getBoolean(USE_BINARIES_ON_LIB_PATH);
   }
 
+  public static void main(String[] args) {
+	System.out.println("Native library loaded:" + nativeLibraryLoaded);
+  }
+
   /**
    * Locates the native library in the jar (loadble by the classloader really),
    * unpacks it in a temp location, and returns that file. If the native library
@@ -86,6 +125,7 @@ public class GPLNativeCodeLoader {
     // locate the binaries inside the jar
     String fileName = System.mapLibraryName(LIBRARY_NAME);
     String directory = getDirectoryLocation();
+    LOG.info("Attempting to load from jar [" + directory + "/[" + fileName + "]]");
     // use the current defining classloader to load the resource
     InputStream is =
         GPLNativeCodeLoader.class.getResourceAsStream(directory + "/" + fileName);
@@ -100,7 +140,7 @@ public class GPLNativeCodeLoader {
           fileName = fileName.replace(".jnilib", ".dylib");
         }
         is = GPLNativeCodeLoader.class.getResourceAsStream(directory + "/" + fileName);
-      }
+     }
       // the OS-specific library was not found: fall back on the library path
       if (is == null) {
         return null;
@@ -124,7 +164,7 @@ public class GPLNativeCodeLoader {
 
       // set the execution permission
       unpackedFile.setExecutable(true, false);
-      LOG.debug("temporary unpacked path: " + unpackedFile);
+      LOG.info("temporary unpacked path: " + unpackedFile);
       // return the file
       return unpackedFile;
     } catch (IOException e) {
@@ -144,11 +184,11 @@ public class GPLNativeCodeLoader {
     if (!windows) {
       String location = "/native/" + osName + "-" + System.getProperty("os.arch") + "-" +
           System.getProperty("sun.arch.data.model") + "/lib";
-      LOG.debug("location: " + location);
+      LOG.info("location: " + location);
       return location;
     } else {
       String location = "/native/" + System.getenv("OS") + "-" + System.getenv("PLATFORM") + "/lib";
-      LOG.debug("location: " + location);
+      LOG.info("location: " + location);
       return location;
     }
   }
